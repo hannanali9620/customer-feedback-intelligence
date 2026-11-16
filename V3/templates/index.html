@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Customer Feedback Intelligence â€” V1 (Offline Core)</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --pos: #22c55e;
+      --neu: #eab308;
+      --neg: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+    }
+    .container { max-width: 1240px; margin: 0 auto; }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 { margin: 0; font-size: 1.5rem; }
+    .sub { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    input[type="file"] {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px;
+      border-radius: 8px;
+    }
+    button {
+      background: var(--accent);
+      color: #0f172a;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.secondary { background: #334155; color: var(--text); }
+    button:hover { opacity: 0.92; }
+    .badges { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+    .badge {
+      background: #172554;
+      border: 1px solid #1d4ed8;
+      color: #bfdbfe;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+    }
+    .error {
+      background: #450a0a;
+      border: 1px solid #dc2626;
+      color: #fecaca;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .kpi-label { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .kpi-value { font-size: 1.55rem; font-weight: 700; margin-top: 6px; }
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 18px;
+      margin-bottom: 22px;
+    }
+    .chart-box { height: 280px; position: relative; }
+    .two-col {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 18px;
+      margin-bottom: 22px;
+    }
+    @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+    pre.report {
+      white-space: pre-wrap;
+      font-family: inherit;
+      line-height: 1.55;
+      background: #0f172a;
+      padding: 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      margin: 10px 0 0 0;
+    }
+    .phrase-chip {
+      display: inline-block;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 8px;
+      margin: 4px;
+      font-size: 0.88rem;
+    }
+    ul.limits { margin: 8px 0 0 18px; color: var(--muted); line-height: 1.5; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-top: 10px; }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; }
+    .pill { padding: 3px 8px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; }
+    .pill-Positive { background: rgba(34,197,94,0.18); color: #86efac; }
+    .pill-Neutral { background: rgba(234,179,8,0.18); color: #fde047; }
+    .pill-Negative { background: rgba(239,68,68,0.18); color: #fca5a5; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>Customer Feedback Intelligence <span style="color:var(--accent)">V3</span></h1>
+        <div class="sub">Schema: <code>customer_id, product, feedback</code> | Active Dataset: <strong id="datasetName">Loading...</strong></div>
+      </div>
+      <div class="controls">
+        <input type="file" id="csvFile" accept=".csv" />
+        <button onclick="uploadCsv()">Analyze CSV</button>
+        <button class="secondary" onclick="loadSample()">Load Sample CSV</button>
+      </div>
+    </header>
+
+    <div id="errorBox" class="error"></div>
+
+    <div class="badges">
+      <span class="badge">Sentiment Backend: <strong id="badgeSentiment">â€”</strong></span>
+      <span class="badge">Key Phrases Backend: <strong id="badgeKeyphrases">â€”</strong></span>
+      <span class="badge">Executive Report Backend: <strong id="badgeReport">â€”</strong></span>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="card"><div class="kpi-label">Total Reviews</div><div class="kpi-value" id="kpiTotal">â€”</div></div>
+      <div class="card"><div class="kpi-label">Positive %</div><div class="kpi-value" style="color:var(--pos)" id="kpiPos">â€”</div></div>
+      <div class="card"><div class="kpi-label">Neutral %</div><div class="kpi-value" style="color:var(--neu)" id="kpiNeu">â€”</div></div>
+      <div class="card"><div class="kpi-label">Negative %</div><div class="kpi-value" style="color:var(--neg)" id="kpiNeg">â€”</div></div>
+      <div class="card"><div class="kpi-label">Net Sentiment Score</div><div class="kpi-value" id="kpiNet">â€”</div></div>
+      <div class="card"><div class="kpi-label">Top Complaint Driver</div><div class="kpi-value" style="font-size:1.15rem" id="kpiComplaint">â€”</div></div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="card">
+        <strong>Sentiment Distribution</strong>
+        <div class="chart-box"><canvas id="sentimentChart"></canvas></div>
+      </div>
+      <div class="card">
+        <strong>Sentiment by Product</strong>
+        <div class="chart-box"><canvas id="productChart"></canvas></div>
+      </div>
+      <div class="card">
+        <strong>Complaint Categories (Non-Positive)</strong>
+        <div class="chart-box"><canvas id="complaintChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="card">
+        <strong>Executive Report</strong>
+        <pre class="report" id="execReport">â€”</pre>
+      </div>
+      <div class="card">
+        <strong>Top Extracted Key Phrases (YAKE)</strong>
+        <div id="keyphrasesBox" style="margin-top:10px;">â€”</div>
+        <hr style="border-color:var(--border); margin:16px 0;" />
+        <strong>Model &amp; Rule Limitations</strong>
+        <ul class="limits" id="limitsList"></ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <strong>Analyzed Feedback Records</strong>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Customer ID</th>
+              <th>Product</th>
+              <th>Sentiment</th>
+              <th>Compound</th>
+              <th>Complaint Category</th>
+              <th>Feedback</th>
+            </tr>
+          </thead>
+          <tbody id="recordsBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let sentimentChart, productChart, complaintChart;
+
+    function showError(msg) {
+      const box = document.getElementById("errorBox");
+      box.textContent = msg;
+      box.style.display = "block";
+    }
+
+    function clearError() {
+      const box = document.getElementById("errorBox");
+      box.style.display = "none";
+    }
+
+    function renderDashboard(data) {
+      clearError();
+      document.getElementById("datasetName").textContent = data.dataset_name || "Uploaded CSV";
+      document.getElementById("badgeSentiment").textContent = data.backends.sentiment;
+      document.getElementById("badgeKeyphrases").textContent = data.backends.keyphrases;
+      document.getElementById("badgeReport").textContent = data.backends.report;
+
+      const k = data.kpis;
+      document.getElementById("kpiTotal").textContent = k.total_reviews;
+      document.getElementById("kpiPos").textContent = `${k.positive_pct}% (${k.positive_count})`;
+      document.getElementById("kpiNeu").textContent = `${k.neutral_pct}% (${k.neutral_count})`;
+      document.getElementById("kpiNeg").textContent = `${k.negative_pct}% (${k.negative_count})`;
+      document.getElementById("kpiNet").textContent = (k.net_sentiment_score > 0 ? "+" : "") + k.net_sentiment_score;
+      document.getElementById("kpiComplaint").textContent = k.top_complaint_category;
+
+      document.getElementById("execReport").textContent = data.executive_report;
+
+      const kpBox = document.getElementById("keyphrasesBox");
+      kpBox.innerHTML = data.top_keyphrases.map(
+        p => `<span class="phrase-chip">${p.phrase} <small style="color:var(--accent)">(${p.relevance})</small></span>`
+      ).join("") || "No key phrases extracted.";
+
+      const limList = document.getElementById("limitsList");
+      limList.innerHTML = data.limitations.map(item => `<li>${item}</li>`).join("");
+
+      const tbody = document.getElementById("recordsBody");
+      tbody.innerHTML = data.records.map(r => `
+        <tr>
+          <td>${r.customer_id}</td>
+          <td>${r.product}</td>
+          <td><span class="pill pill-${r.sentiment}">${r.sentiment}</span></td>
+          <td>${r.compound_score}</td>
+          <td>${r.complaint_category}</td>
+          <td>${r.feedback}</td>
+        </tr>
+      `).join("");
+
+      if (sentimentChart) sentimentChart.destroy();
+      sentimentChart = new Chart(document.getElementById("sentimentChart"), {
+        type: "doughnut",
+        data: {
+          labels: ["Positive", "Neutral", "Negative"],
+          datasets: [{
+            data: [k.positive_count, k.neutral_count, k.negative_count],
+            backgroundColor: ["#22c55e", "#eab308", "#ef4444"],
+            borderWidth: 0
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: "#f1f5f9" } } } }
+      });
+
+      if (productChart) productChart.destroy();
+      productChart = new Chart(document.getElementById("productChart"), {
+        type: "bar",
+        data: {
+          labels: data.product_breakdown.map(p => p.product),
+          datasets: [
+            { label: "Positive", data: data.product_breakdown.map(p => p.positive), backgroundColor: "#22c55e" },
+            { label: "Neutral", data: data.product_breakdown.map(p => p.neutral), backgroundColor: "#eab308" },
+            { label: "Negative", data: data.product_breakdown.map(p => p.negative), backgroundColor: "#ef4444" }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { stacked: true, ticks: { color: "#94a3b8" } },
+            y: { stacked: true, ticks: { color: "#94a3b8", precision: 0 } }
+          },
+          plugins: { legend: { labels: { color: "#f1f5f9" } } }
+        }
+      });
+
+      if (complaintChart) complaintChart.destroy();
+      const compLabels = Object.keys(data.complaint_distribution);
+      const compVals = Object.values(data.complaint_distribution);
+      complaintChart = new Chart(document.getElementById("complaintChart"), {
+        type: "bar",
+        data: {
+          labels: compLabels.length ? compLabels : ["No Complaints"],
+          datasets: [{
+            label: "Tickets",
+            data: compVals.length ? compVals : [0],
+            backgroundColor: "#38bdf8"
+          }]
+        },
+        options: {
+          indexAxis: "y",
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { ticks: { color: "#94a3b8", precision: 0 } },
+            y: { ticks: { color: "#94a3b8" } }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    async function loadSample() {
+      const res = await fetch("/api/sample");
+      const data = await res.json();
+      if (!res.ok) return showError(data.error || "Failed to load sample.");
+      renderDashboard(data);
+    }
+
+    async function uploadCsv() {
+      const fileInput = document.getElementById("csvFile");
+      if (!fileInput.files.length) return showError("Choose a CSV file first.");
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+      const res = await fetch("/api/analyze", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) return showError(data.error || "Analysis failed.");
+      renderDashboard(data);
+    }
+
+    window.addEventListener("DOMContentLoaded", loadSample);
+  </script>
+</body>
+</html>

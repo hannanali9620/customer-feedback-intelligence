@@ -1,0 +1,9 @@
+﻿flask==3.0.3
+pandas==2.2.3
+python-dotenv==1.0.1
+vaderSentiment==3.3.2
+yake==0.4.8
+requests==2.32.3
+# Optional for capable PCs (install separately if ENABLE_DISTILBERT=true):
+# torch --index-url https://download.pytorch.org/whl/cpu
+# transformers==4.45.2
